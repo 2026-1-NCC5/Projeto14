@@ -9,12 +9,11 @@ Projeto 14
 
 # PicBoard
 
-## JSONBond
+## (Sem Nome)
 
 ## Integrantes:  
-- [Arthur Rodrigues Ferreira](https://www.linkedin.com/in/arthur-rodrigues-ferreira-443175304/)
-- [Felipe Oluwaseun Santos Ojo](https://www.linkedin.com/in/felipeosantosojo/)
-- [Gabriel Henrique Coelho Marussi](https://www.linkedin.com/in/gabrielmarussi/)  
+- [Arthur 
+- [Pedro Dela  
 - [Lucas Kenichi Soares Abe](https://www.linkedin.com/in/lucasskenichi/)
 - [Pedro Dimitry Zyrianoff](https://www.linkedin.com/in/pedro-dimitry-zyrianoff-2223b1268//)  
 
@@ -27,7 +26,7 @@ Projeto 14
 ## Descrição
 
 <p align="center">
-<img src="https://i.imgur.com/BpLWnfu.png" alt="PicBoard - Logo" border="0">
+<img src="https://i.imgur.com/BpLWnfu.png" alt="Sem Nome - Logo" border="0">
 </p>
 
 
