@@ -13,13 +13,13 @@ Corpo Docente (Orientadores): Victor Rosseti, Rodnil da Silva Moreira Lisboa, Ma
 FECAP - Fundação de Comércio Álvares Penteado
 
 🗂️ Estrutura de Pastas
-├── 📂 documentos/
-│   ├── 📁 Entrega01/
-│   │   ├── 📂 Algebra_Linear         
-│   │   ├── 📂 Inteligência_Artificial 
-│   │   ├── 📂 Sistemas_Operacionais  
-│   │   ├── 📂 Psicologia_Liderança    
-│   │   └── 📂 Projeto                
+├── 🗂️ documentos/
+│ ├── 📁 Entrega01
+│ │ └── 📂 Algebra_Linear
+│ │ └── 📂 Inteligência_Artifical
+│ │ └── 📂 Sistemas_Operacionais
+│ │ └── 📂 Psicologia_Liderança
+│ │ └── 📂 Projeto
 └── 📄 readme.md
 
 💻 Tecnologias para Desenvolvimento
