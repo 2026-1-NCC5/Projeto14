@@ -24,8 +24,8 @@ Através de visão computacional, substituímos processos manuais por uma soluç
 **Integrantes:**
 * [Pedro Dimitry Zyrianoff](https://www.linkedin.com/in/pedro-dimitry-zyrianoff-2223b1268/)
 * [Lucas Kenichi Soares Abe](https://www.linkedin.com/in/lucasskenichi/)
-* [Artur](https://www.linkedin.com/in/arthur-paltrinieri/)
-* [Pedro](https://www.linkedin.com/in/pedrodra/)
+* [Arthur Paltrinieri Silva](https://www.linkedin.com/in/arthur-paltrinieri/)
+* [Pedro Della Rosa Antônio](https://www.linkedin.com/in/pedrodra/)
 
 **Corpo Docente (Orientadores):**
 * [Victor Rosseti](https://www.linkedin.com/in/victorbarq/) | [Rodnil da Silva Moreira Lisboa](https://www.linkedin.com/in/professorrodnil/)
