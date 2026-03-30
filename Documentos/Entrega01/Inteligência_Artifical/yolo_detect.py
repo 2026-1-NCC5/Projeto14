@@ -11,16 +11,15 @@ from ultralytics import YOLO
 # Define and parse user input arguments
 
 parser = argparse.ArgumentParser()
-# AJUSTE: required=True removido, adicionado default='my_model.pt'
 parser.add_argument('--model', help='Path to YOLO model file (example: "runs/detect/train/weights/best.pt")',
                     default='my_model.pt')
-# AJUSTE: required=True removido, adicionado default='usb0'
+# Defini default='usb0' - > WebCam
 parser.add_argument('--source', help='Image source, can be image file ("test.jpg"), \
                     image folder ("test_dir"), video file ("testvid.mp4"), or index of USB camera ("usb0")', 
                     default='usb0')
 parser.add_argument('--thresh', help='Minimum confidence threshold for displaying detected objects (example: "0.4")',
                     default=0.5)
-# AJUSTE: default mudou de None para '1280x720'
+# Defini default para '1280x720' no momento de launch
 parser.add_argument('--resolution', help='Resolution in WxH to display inference results at (example: "640x480"), \
                     otherwise, match source resolution',
                     default='1280x720')
