@@ -39,8 +39,14 @@ Através de visão computacional, substituímos processos manuais por uma soluç
 ```text
 documentos/
 └── Entrega01/
-    ├── Algebra_Linear
-    ├── Inteligência_Artificial
-    ├── Sistemas_Operacionais
-    ├── Psicologia_Liderança
-    └── Projeto_Interdisciplinar
+    ├──Álgebra Linear, Vetores e Geometria Analítica
+    ├── Inteligência Artifical e Aprendizado de Máquina
+    ├── Sistemas Operacionais e Computação em Nuvem
+    ├── Psicologia, Liderança e Soft Skills
+    └── Projeto Interdisciplinar Inteligência Artificial
+└── Entrega02/
+    ├── Álgebra Linear, Vetores e Geometria Analítica
+    ├── Inteligência Artifical e Aprendizado de Máquina
+    ├── Sistemas Operacionais e Computação em Nuvem
+    ├── Psicologia, Liderança e Soft Skills
+    └── Projeto Interdisciplinar Inteligência Artificial
