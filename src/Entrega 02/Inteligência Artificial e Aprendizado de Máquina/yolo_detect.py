@@ -11,11 +11,25 @@ from tkinter import ttk
 import cv2
 import numpy as np
 import mysql.connector
+from dotenv import load_dotenv
 from ultralytics import YOLO
+
+load_dotenv()
+
+# ==============================================================================
+# CONFIGURAÇÕES DO BANCO DE DADOS
+# ==============================================================================
+
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = int(os.getenv("DB_PORT", "3306"))
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME")
+DB_SSL = os.getenv("DB_SSL", "false").lower() == "true"
 
 
 # ==============================================================================
-# CONFIGURAÇÕES
+# CONFIGURAÇÕES DO MODELO
 # ==============================================================================
 
 PESOS_CLASSES = {
@@ -50,12 +64,38 @@ FRAMES_MAX_SUMIDO = 30
 # ==============================================================================
 
 def conectar_banco():
+    if not all([DB_HOST, DB_USER, DB_PASSWORD, DB_NAME]):
+        raise ValueError(
+            "Configuração do banco incompleta. "
+            "Verifique DB_HOST, DB_USER, DB_PASSWORD e DB_NAME no arquivo .env."
+        )
+
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="230604",
-        database="liderai"
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        ssl_disabled=not DB_SSL
     )
+
+
+def testar_conexao():
+    try:
+        conexao = conectar_banco()
+        cursor = conexao.cursor()
+        cursor.execute("SELECT DATABASE()")
+        banco_atual = cursor.fetchone()[0]
+
+        cursor.close()
+        conexao.close()
+
+        print(f"✅ Conectado ao banco: {banco_atual}")
+        return True
+
+    except Exception as e:
+        print(f"❌ Erro ao testar conexão com o banco: {e}")
+        return False
 
 
 def salvar_banco_async(equipe, alimento, quantidade, peso_total):
@@ -63,17 +103,6 @@ def salvar_banco_async(equipe, alimento, quantidade, peso_total):
         try:
             conexao = conectar_banco()
             cursor = conexao.cursor()
-
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS arrecadacao (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    team_group VARCHAR(100),
-                    alimento VARCHAR(100),
-                    quantidade INT,
-                    peso_kg DECIMAL(10,2),
-                    data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
 
             cursor.execute(
                 """
@@ -85,9 +114,14 @@ def salvar_banco_async(equipe, alimento, quantidade, peso_total):
             )
 
             conexao.commit()
+
+            cursor.close()
             conexao.close()
 
-            print(f"✅ Salvo no DB: {quantidade}x {alimento} ({peso_total}kg) - Equipe: {equipe}")
+            print(
+                f"✅ Salvo no DB: {quantidade}x {alimento} "
+                f"({peso_total}kg) - Equipe: {equipe}"
+            )
 
         except Exception as e:
             print(f"⚠️ Erro ao salvar no banco: {e}")
@@ -101,19 +135,34 @@ def obter_grupos_db():
         cursor = conexao.cursor()
 
         cursor.execute("""
-            SELECT DISTINCT team_group 
-            FROM users 
-            WHERE team_group IS NOT NULL 
-            AND team_group != ''
+            SELECT grupo
+            FROM (
+                SELECT name AS grupo
+                FROM team_groups
+
+                UNION
+
+                SELECT team_group AS grupo
+                FROM users
+                WHERE team_group IS NOT NULL
+                AND team_group != ''
+            ) AS grupos_unificados
+            WHERE grupo IS NOT NULL
+            AND grupo != ''
+            ORDER BY grupo
         """)
 
         grupos = [linha[0] for linha in cursor.fetchall()]
+
+        cursor.close()
         conexao.close()
+
+        print(f"✅ Grupos encontrados no banco: {grupos}")
 
         return grupos if grupos else ["Nenhum grupo cadastrado no DB"]
 
     except Exception as e:
-        print(f"⚠️ Erro ao conectar no MySQL: {e}")
+        print(f"⚠️ Erro ao buscar grupos no MySQL: {e}")
         return ["Grupo A (Modo Offline)", "Grupo B (Modo Offline)"]
 
 
@@ -127,7 +176,7 @@ def selecionar_grupo():
 
     janela = tk.Tk()
     janela.title("LiderAI - Configuração de Sessão")
-    janela.geometry("380x180")
+    janela.geometry("420x190")
     janela.eval("tk::PlaceWindow . center")
 
     tk.Label(
@@ -141,7 +190,7 @@ def selecionar_grupo():
         values=grupos,
         state="readonly",
         font=("Arial", 11),
-        width=30
+        width=38
     )
     combo.pack(pady=5)
     combo.current(0)
@@ -345,29 +394,45 @@ if not os.path.exists(args.model):
     sys.exit(0)
 
 
-# 1. Seleção do grupo
+# 1. Teste de conexão
+if not testar_conexao():
+    print("Encerrando por falha na conexão com o banco.")
+    sys.exit(0)
+
+
+# 2. Seleção do grupo
 grupo_selecionado = selecionar_grupo()
 
 if not grupo_selecionado:
     print("Nenhum grupo selecionado. Encerrando.")
     sys.exit(0)
 
+grupos_invalidos = [
+    "Nenhum grupo cadastrado no DB",
+    "Grupo A (Modo Offline)",
+    "Grupo B (Modo Offline)"
+]
+
+if grupo_selecionado in grupos_invalidos:
+    print("Grupo inválido ou modo offline selecionado. Encerrando.")
+    sys.exit(0)
+
 print(f"\n✅ Sessão iniciada para a equipe: {grupo_selecionado}")
 
 
-# 2. Preparação da fonte
+# 3. Preparação da fonte
 source_type, source_data = identificar_fonte(args.source)
 cap = abrir_captura(source_type, source_data, resW, resH)
 img_count = 0
 
 
-# 3. Carregamento do YOLO
+# 4. Carregamento do YOLO
 print("\nCarregando IA...")
 model = YOLO(args.model, task="detect")
 labels = model.names
 
 
-# 4. Gravação opcional
+# 5. Gravação opcional
 if args.record:
     recorder = cv2.VideoWriter(
         "demo1.avi",
@@ -377,7 +442,7 @@ if args.record:
     )
 
 
-# 5. Variáveis de contagem
+# 6. Variáveis de contagem
 tracked_objects = []
 contagens_peso = {}
 contagens_unidade = {}

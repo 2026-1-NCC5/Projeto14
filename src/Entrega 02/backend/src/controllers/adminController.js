@@ -4,11 +4,13 @@ const pool = require('../db');
 exports.getUsers = async (req, res) => {
     try {
         const [rows] = await pool.execute(
-            'SELECT id, full_name AS name, email, team_group AS `group` FROM users WHERE role = "aluno"'
+            'SELECT id, full_name AS name, email, team_group AS `group` FROM users WHERE role = ?',
+            ['aluno']
         );
+
         res.json(rows);
     } catch (error) {
-        console.error(error);
+        console.error('Erro ao buscar usuários:', error);
         res.status(500).json({ error: 'Erro ao buscar usuários.' });
     }
 };

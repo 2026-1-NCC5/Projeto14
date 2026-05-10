@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS team_groups (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    full_name VARCHAR(150) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    role ENUM('aluno', 'admin') NOT NULL DEFAULT 'aluno',
+    team_group VARCHAR(100),
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS arrecadacao (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    team_group VARCHAR(100),
+    alimento VARCHAR(100),
+    quantidade INT DEFAULT 1,
+    peso_kg DECIMAL(10,2),
+    data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

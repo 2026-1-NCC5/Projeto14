@@ -18,7 +18,6 @@ app.use(express.json());
 app.use('/api', authRoutes);
 
 // Rotas de Administração (Gestão de Alunos e Grupos)
-// Estas rotas permitem que o Admin visualize alunos, crie/delete grupos e aloque membros
 app.get('/api/users', adminController.getUsers);
 app.get('/api/groups', adminController.getGroups);
 app.post('/api/groups', adminController.createGroup);

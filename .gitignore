@@ -240,3 +240,7 @@ Thumbs.db
 coverage/
 playwright-report/
 test-results/
+
+.env
+.env.*
+node_modules/

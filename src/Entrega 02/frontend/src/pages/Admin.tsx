@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
 import {
   Plus,
   Search,
@@ -34,6 +33,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 interface User {
   id: string;
@@ -52,7 +52,6 @@ const effectiveGroup = (u: User) =>
   u.pendingGroup !== undefined ? u.pendingGroup : u.group;
 
 const Admin = () => {
-  // Estados iniciam vazios pois virão do banco de dados
   const [groups, setGroups] = useState<string[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [newGroup, setNewGroup] = useState("");
@@ -61,22 +60,26 @@ const Admin = () => {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkGroup, setBulkGroup] = useState<string>("");
 
-  // Busca os dados reais do banco ao carregar a página
   useEffect(() => {
     const fetchData = async () => {
       try {
         const [usersRes, groupsRes] = await Promise.all([
-          axios.get("http://localhost:3000/api/users"),
-          axios.get("http://localhost:3000/api/groups")
+          api.get("/api/users"),
+          api.get("/api/groups"),
         ]);
-        
-        const formattedUsers = usersRes.data.map((u: any) => ({ ...u, id: String(u.id) }));
+
+        const formattedUsers = usersRes.data.map((u: any) => ({
+          ...u,
+          id: String(u.id),
+        }));
+
         setUsers(formattedUsers);
         setGroups(groupsRes.data.map((g: any) => g.name));
       } catch (error) {
         toast.error("Erro ao carregar dados do servidor.");
       }
     };
+
     fetchData();
   }, []);
 
@@ -87,17 +90,19 @@ const Admin = () => {
 
   const handleCreateGroup = async () => {
     const name = newGroup.trim();
+
     if (!name) {
       toast.error("Digite um nome para o grupo");
       return;
     }
+
     if (groups.some((g) => g.toLowerCase() === name.toLowerCase())) {
       toast.error("Este grupo já existe");
       return;
     }
 
     try {
-      await axios.post("http://localhost:3000/api/groups", { name });
+      await api.post("/api/groups", { name });
       setGroups((g) => [...g, name]);
       setNewGroup("");
       toast.success(`Grupo "${name}" criado com sucesso`);
@@ -108,16 +113,21 @@ const Admin = () => {
 
   const handleRemoveGroup = async (group: string) => {
     try {
-      await axios.delete(`http://localhost:3000/api/groups/${group}`);
+      await api.delete(`/api/groups/${group}`);
+
       setGroups((gs) => gs.filter((g) => g !== group));
+
       setUsers((us) =>
         us.map((u) => {
           const next = { ...u };
+
           if (next.group === group) next.group = null;
           if (next.pendingGroup === group) next.pendingGroup = null;
+
           return next;
         }),
       );
+
       toast.success(`Grupo "${group}" removido`);
     } catch (error) {
       toast.error("Erro ao remover grupo");
@@ -126,13 +136,16 @@ const Admin = () => {
 
   const handleChangeUserGroup = (userId: string, value: string) => {
     const next = value === UNASSIGNED ? null : value;
+
     setUsers((us) =>
       us.map((u) => {
         if (u.id !== userId) return u;
+
         if (next === u.group) {
           const { pendingGroup: _p, ...rest } = u;
           return rest;
         }
+
         return { ...u, pendingGroup: next };
       }),
     );
@@ -140,23 +153,27 @@ const Admin = () => {
 
   const handleSaveAll = async () => {
     if (pendingCount === 0) return;
-    
+
     try {
       const pendingUsers = users.filter(hasPending);
-      
-      // Salva no banco de dados
-      await Promise.all(pendingUsers.map(u => 
-        axios.put(`http://localhost:3000/api/users/${u.id}/group`, { group: u.pendingGroup })
-      ));
 
-      // Atualiza a tela
+      await Promise.all(
+        pendingUsers.map((u) =>
+          api.put(`/api/users/${u.id}/group`, {
+            group: u.pendingGroup,
+          }),
+        ),
+      );
+
       setUsers((us) =>
         us.map((u) => {
           if (!hasPending(u)) return u;
+
           const { pendingGroup, ...rest } = u;
           return { ...rest, group: pendingGroup ?? null };
         }),
       );
+
       toast.success(`${pendingCount} alteração salva com sucesso`);
     } catch (error) {
       toast.error("Erro ao salvar alterações no servidor");
@@ -165,13 +182,16 @@ const Admin = () => {
 
   const handleDiscardAll = () => {
     if (pendingCount === 0) return;
+
     setUsers((us) =>
       us.map((u) => {
         if (!hasPending(u)) return u;
+
         const { pendingGroup: _p, ...rest } = u;
         return rest;
       }),
     );
+
     toast("Alterações descartadas");
   };
 
@@ -180,32 +200,36 @@ const Admin = () => {
       toast.error("Selecione ao menos um utilizador");
       return;
     }
+
     if (!bulkGroup) {
       toast.error("Escolha um grupo de destino");
       return;
     }
-    
-    const nextGroup = bulkGroup === UNASSIGNED ? null : bulkGroup;
-    
-    try {
-      // Salva no banco de dados
-      await Promise.all(Array.from(selected).map(id => 
-        axios.put(`http://localhost:3000/api/users/${id}/group`, { group: nextGroup })
-      ));
 
-      // Atualiza a tela
+    const nextGroup = bulkGroup === UNASSIGNED ? null : bulkGroup;
+
+    try {
+      await Promise.all(
+        Array.from(selected).map((id) =>
+          api.put(`/api/users/${id}/group`, {
+            group: nextGroup,
+          }),
+        ),
+      );
+
       setUsers((us) =>
         us.map((u) => {
           if (!selected.has(u.id)) return u;
+
           const { pendingGroup: _p, ...rest } = u;
           return { ...rest, group: nextGroup };
         }),
       );
-      
+
       const label = nextGroup ?? "Sem grupo";
-      toast.success(
-        `${selected.size} utilizadores movidos para ${label}`,
-      );
+
+      toast.success(`${selected.size} utilizadores movidos para ${label}`);
+
       setSelected(new Set());
       setBulkGroup("");
     } catch (error) {
@@ -215,22 +239,32 @@ const Admin = () => {
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
-      const matchesSearch = u.name.toLowerCase().includes(search.toLowerCase());
-      const matchesUnassigned = onlyUnassigned ? effectiveGroup(u) === null : true;
+      const matchesSearch = u.name
+        .toLowerCase()
+        .includes(search.toLowerCase());
+
+      const matchesUnassigned = onlyUnassigned
+        ? effectiveGroup(u) === null
+        : true;
+
       return matchesSearch && matchesUnassigned;
     });
   }, [users, search, onlyUnassigned]);
 
   const allFilteredSelected =
-    filteredUsers.length > 0 && filteredUsers.every((u) => selected.has(u.id));
+    filteredUsers.length > 0 &&
+    filteredUsers.every((u) => selected.has(u.id));
+
   const someFilteredSelected =
     filteredUsers.some((u) => selected.has(u.id)) && !allFilteredSelected;
 
   const toggleSelectUser = (id: string, value: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
+
       if (value) next.add(id);
       else next.delete(id);
+
       return next;
     });
   };
@@ -238,10 +272,12 @@ const Admin = () => {
   const toggleSelectAllFiltered = (value: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
+
       filteredUsers.forEach((u) => {
         if (value) next.add(u.id);
         else next.delete(u.id);
       });
+
       return next;
     });
   };
@@ -250,21 +286,27 @@ const Admin = () => {
     setSelected((prev) => {
       const ids = new Set(users.map((u) => u.id));
       const next = new Set<string>();
+
       prev.forEach((id) => ids.has(id) && next.add(id));
+
       return next;
     });
   }, [users]);
 
-  const unassignedCount = users.filter((u) => effectiveGroup(u) === null).length;
+  const unassignedCount = users.filter(
+    (u) => effectiveGroup(u) === null,
+  ).length;
 
   const handleExportCSV = () => {
     const header = ["ID", "Nome", "E-mail", "Grupo"];
+
     const rows = users.map((u) => [
       u.id,
       u.name,
       u.email,
       u.group ?? "Sem grupo",
     ]);
+
     const csv = [header, ...rows]
       .map((r) =>
         r
@@ -275,23 +317,33 @@ const Admin = () => {
           .join(","),
       )
       .join("\n");
-    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+
+    const blob = new Blob([`\uFEFF${csv}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
+
     a.href = url;
-    a.download = `liderai-utilizadores-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `liderai-utilizadores-${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
     toast.success("Lista exportada em CSV");
   };
 
   const groupCountClass = (count: number) => {
     if (count === 0)
       return "bg-destructive/15 text-destructive ring-destructive/30";
-    if (count === 1)
-      return "bg-amber-100 text-amber-700 ring-amber-300";
+
+    if (count === 1) return "bg-amber-100 text-amber-700 ring-amber-300";
+
     return "bg-primary/20 text-primary ring-primary/20";
   };
 
@@ -303,6 +355,7 @@ const Admin = () => {
         </Badge>
       );
     }
+
     if (u.group) {
       return (
         <Badge className="rounded-full bg-primary/10 text-primary hover:bg-primary/10">
@@ -310,6 +363,7 @@ const Admin = () => {
         </Badge>
       );
     }
+
     return (
       <Badge
         variant="outline"
@@ -328,15 +382,18 @@ const Admin = () => {
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
               <UserCog className="h-5 w-5" />
             </div>
+
             <div>
               <h1 className="text-2xl font-bold text-[hsl(var(--dark-green))] md:text-3xl">
                 Alocação de Utilizadores
               </h1>
+
               <p className="text-sm text-muted-foreground">
                 Gestão de grupos e atribuição de utilizadores · LiderAI
               </p>
             </div>
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
             {pendingCount > 0 && (
               <>
@@ -348,6 +405,7 @@ const Admin = () => {
                   <X className="h-4 w-4" />
                   Descartar
                 </Button>
+
                 <Button
                   onClick={handleSaveAll}
                   className="h-11 gap-2 rounded-xl px-5 shadow-md shadow-primary/20"
@@ -360,12 +418,16 @@ const Admin = () => {
                 </Button>
               </>
             )}
+
             <div className="flex items-center gap-2 self-start rounded-2xl bg-card px-4 py-2 shadow-sm ring-1 ring-border md:self-auto">
               <Users className="h-4 w-4 text-primary" />
+
               <span className="text-sm font-medium text-[hsl(var(--dark-green))]">
                 {users.length}
               </span>
+
               <span className="mx-1 h-4 w-px bg-border" />
+
               <span className="text-sm text-muted-foreground">
                 {groups.length} grupos
               </span>
@@ -387,6 +449,7 @@ const Admin = () => {
               placeholder="Ex.: Grupo 5, Equipe Logística..."
               className="h-11 flex-1 rounded-xl"
             />
+
             <Button
               onClick={handleCreateGroup}
               className="h-11 gap-2 rounded-xl px-6"
@@ -400,6 +463,7 @@ const Admin = () => {
             <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Grupos existentes
             </p>
+
             {groups.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Nenhum grupo criado ainda.
@@ -409,6 +473,7 @@ const Admin = () => {
                 {groups.map((g) => {
                   const count = users.filter((u) => u.group === g).length;
                   const lowCount = count <= 1;
+
                   return (
                     <div
                       key={g}
@@ -421,12 +486,11 @@ const Admin = () => {
                           : "bg-primary/10 text-primary ring-primary/20 hover:bg-primary/15",
                       )}
                       title={
-                        lowCount
-                          ? "Equipe desfalcada para a gincana"
-                          : undefined
+                        lowCount ? "Equipe desfalcada para a gincana" : undefined
                       }
                     >
                       <span>{g}</span>
+
                       <Badge
                         variant="secondary"
                         className={cn(
@@ -436,14 +500,18 @@ const Admin = () => {
                       >
                         {count}
                       </Badge>
+
                       {lowCount && (
                         <AlertTriangle
                           className={cn(
                             "h-3.5 w-3.5",
-                            count === 0 ? "text-destructive" : "text-amber-600",
+                            count === 0
+                              ? "text-destructive"
+                              : "text-amber-600",
                           )}
                         />
                       )}
+
                       <button
                         onClick={() => handleRemoveGroup(g)}
                         className="flex h-6 w-6 items-center justify-center rounded-lg text-current/60 opacity-60 transition-all hover:bg-destructive/10 hover:text-destructive hover:opacity-100"
@@ -465,19 +533,22 @@ const Admin = () => {
               <Users className="h-4 w-4 text-primary" />
               Utilizadores
               <span className="text-xs font-normal text-muted-foreground">
-                ({filteredUsers.length} resultado{filteredUsers.length !== 1 && "s"})
+                ({filteredUsers.length} resultado
+                {filteredUsers.length !== 1 && "s"})
               </span>
             </h2>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar por nome..."
                   className="h-10 w-full rounded-xl pl-9 sm:w-64"
                 />
+
                 {search && (
                   <button
                     onClick={() => setSearch("")}
@@ -537,16 +608,25 @@ const Admin = () => {
                       aria-label="Selecionar todos"
                     />
                   </TableHead>
-                  <TableHead className="text-[hsl(var(--dark-green))]">Nome</TableHead>
-                  <TableHead className="text-[hsl(var(--dark-green))]">E-mail</TableHead>
+
+                  <TableHead className="text-[hsl(var(--dark-green))]">
+                    Nome
+                  </TableHead>
+
+                  <TableHead className="text-[hsl(var(--dark-green))]">
+                    E-mail
+                  </TableHead>
+
                   <TableHead className="w-[220px] text-[hsl(var(--dark-green))]">
                     Grupo Atual
                   </TableHead>
+
                   <TableHead className="w-[130px] text-right text-[hsl(var(--dark-green))]">
                     Status
                   </TableHead>
                 </TableRow>
               </TableHeader>
+
               <TableBody>
                 {filteredUsers.length === 0 ? (
                   <TableRow>
@@ -560,6 +640,7 @@ const Admin = () => {
                 ) : (
                   filteredUsers.map((u) => {
                     const pending = hasPending(u);
+
                     return (
                       <TableRow
                         key={u.id}
@@ -578,34 +659,51 @@ const Admin = () => {
                             aria-label={`Selecionar ${u.name}`}
                           />
                         </TableCell>
+
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                              {u.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                              {u.name
+                                .split(" ")
+                                .map((n) => n[0])
+                                .slice(0, 2)
+                                .join("")}
                             </div>
+
                             <span className="font-medium text-[hsl(var(--dark-green))]">
                               {u.name}
                             </span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-muted-foreground">{u.email}</TableCell>
+
+                        <TableCell className="text-muted-foreground">
+                          {u.email}
+                        </TableCell>
+
                         <TableCell>
                           <Select
                             value={effectiveGroup(u) ?? UNASSIGNED}
-                            onValueChange={(v) => handleChangeUserGroup(u.id, v)}
+                            onValueChange={(v) =>
+                              handleChangeUserGroup(u.id, v)
+                            }
                           >
                             <SelectTrigger
                               className={cn(
                                 "h-9 rounded-lg",
-                                pending && "border-amber-400 ring-1 ring-amber-200",
+                                pending &&
+                                  "border-amber-400 ring-1 ring-amber-200",
                               )}
                             >
                               <SelectValue />
                             </SelectTrigger>
+
                             <SelectContent>
                               <SelectItem value={UNASSIGNED}>
-                                <span className="text-muted-foreground">Sem grupo</span>
+                                <span className="text-muted-foreground">
+                                  Sem grupo
+                                </span>
                               </SelectItem>
+
                               {groups.map((g) => (
                                 <SelectItem key={g} value={g}>
                                   {g}
@@ -614,6 +712,7 @@ const Admin = () => {
                             </SelectContent>
                           </Select>
                         </TableCell>
+
                         <TableCell className="text-right">
                           {renderStatusBadge(u)}
                         </TableCell>
@@ -633,6 +732,7 @@ const Admin = () => {
             ) : (
               filteredUsers.map((u) => {
                 const pending = hasPending(u);
+
                 return (
                   <div
                     key={u.id}
@@ -649,18 +749,29 @@ const Admin = () => {
                           className="mt-1"
                           aria-label={`Selecionar ${u.name}`}
                         />
+
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                          {u.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                          {u.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .slice(0, 2)
+                            .join("")}
                         </div>
+
                         <div>
                           <p className="font-medium text-[hsl(var(--dark-green))]">
                             {u.name}
                           </p>
-                          <p className="text-xs text-muted-foreground">{u.email}</p>
+
+                          <p className="text-xs text-muted-foreground">
+                            {u.email}
+                          </p>
                         </div>
                       </div>
+
                       {renderStatusBadge(u)}
                     </div>
+
                     <Select
                       value={effectiveGroup(u) ?? UNASSIGNED}
                       onValueChange={(v) => handleChangeUserGroup(u.id, v)}
@@ -673,10 +784,14 @@ const Admin = () => {
                       >
                         <SelectValue />
                       </SelectTrigger>
+
                       <SelectContent>
                         <SelectItem value={UNASSIGNED}>
-                          <span className="text-muted-foreground">Sem grupo</span>
+                          <span className="text-muted-foreground">
+                            Sem grupo
+                          </span>
                         </SelectItem>
+
                         {groups.map((g) => (
                           <SelectItem key={g} value={g}>
                             {g}
@@ -697,10 +812,13 @@ const Admin = () => {
           <div className="mx-auto flex max-w-3xl flex-col gap-3 rounded-2xl bg-[hsl(var(--dark-green))] p-3 text-white shadow-2xl ring-1 ring-black/10 sm:flex-row sm:items-center sm:gap-4 sm:p-4">
             <div className="flex items-center gap-2 text-sm">
               <CheckCircle2 className="h-4 w-4 text-primary" />
+
               <span className="font-semibold">{selected.size}</span>
+
               <span className="text-white/70">
                 selecionado{selected.size > 1 ? "s" : ""}
               </span>
+
               <button
                 onClick={() => setSelected(new Set())}
                 className="ml-1 rounded-md p-1 text-white/60 hover:bg-white/10 hover:text-white"
@@ -709,17 +827,22 @@ const Admin = () => {
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
+
             <div className="hidden h-8 w-px bg-white/15 sm:block" />
+
             <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
               <span className="text-xs text-white/70 sm:whitespace-nowrap">
                 Mover para:
               </span>
+
               <Select value={bulkGroup} onValueChange={setBulkGroup}>
                 <SelectTrigger className="h-10 flex-1 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/15 focus:ring-primary">
                   <SelectValue placeholder="Selecione um grupo" />
                 </SelectTrigger>
+
                 <SelectContent>
                   <SelectItem value={UNASSIGNED}>Sem grupo</SelectItem>
+
                   {groups.map((g) => (
                     <SelectItem key={g} value={g}>
                       {g}
@@ -727,10 +850,8 @@ const Admin = () => {
                   ))}
                 </SelectContent>
               </Select>
-              <Button
-                onClick={handleApplyBulk}
-                className="h-10 gap-2 rounded-xl px-5"
-              >
+
+              <Button onClick={handleApplyBulk} className="h-10 gap-2 rounded-xl px-5">
                 Aplicar
               </Button>
             </div>
