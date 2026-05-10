@@ -4,32 +4,67 @@ import argparse
 import glob
 import time
 import math
-import json
-import threading # ADICIONADO: Para salvar no banco sem travar o vídeo
+import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
-import mysql.connector
+from tkinter import ttk
 
 import cv2
 import numpy as np
+import mysql.connector
 from ultralytics import YOLO
 
+
 # ==============================================================================
-# FUNÇÃO PARA SALVAR NO BANCO DE DADOS (ASSÍNCRONA)
+# CONFIGURAÇÕES
 # ==============================================================================
-def salvar_banco_async(equipe, nome_alimento, quantidade, peso_total):
+
+PESOS_CLASSES = {
+    "1kg_rice_package": 1.0,
+    "5kg_rice_package": 5.0,
+    "beans_package": 1.0,
+    "fuba_package": 0.5,
+    "oil_package": 0.9,
+    "pasta_package": 0.5,
+    "spaghetti_package": 0.5,
+    "sugar_package": 1.0
+}
+
+NOMES_ALIMENTOS = {
+    "1kg_rice_package": "arroz",
+    "5kg_rice_package": "arroz",
+    "beans_package": "feijao",
+    "fuba_package": "fuba",
+    "oil_package": "oleo",
+    "pasta_package": "macarrao",
+    "spaghetti_package": "macarrao",
+    "sugar_package": "acucar"
+}
+
+DISTANCIA_MAX_ASSOCIACAO = 140
+FRAMES_PARA_CONTAR = 8
+FRAMES_MAX_SUMIDO = 30
+
+
+# ==============================================================================
+# BANCO DE DADOS
+# ==============================================================================
+
+def conectar_banco():
+    return mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="230604",
+        database="liderai"
+    )
+
+
+def salvar_banco_async(equipe, alimento, quantidade, peso_total):
     def run():
         try:
-            conexao = mysql.connector.connect(
-                host="localhost",
-                user="root",
-                password="230604",
-                database="liderai"
-            )
+            conexao = conectar_banco()
             cursor = conexao.cursor()
-            
-            # Garante que a tabela de arrecadações existe
-            cursor.execute('''
+
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS arrecadacao (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     team_group VARCHAR(100),
@@ -38,356 +73,471 @@ def salvar_banco_async(equipe, nome_alimento, quantidade, peso_total):
                     peso_kg DECIMAL(10,2),
                     data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            ''')
-            
-            sql = "INSERT INTO arrecadacao (team_group, alimento, quantidade, peso_kg) VALUES (%s, %s, %s, %s)"
-            valores = (equipe, nome_alimento, quantidade, peso_total)
-            cursor.execute(sql, valores)
+            """)
+
+            cursor.execute(
+                """
+                INSERT INTO arrecadacao 
+                (team_group, alimento, quantidade, peso_kg) 
+                VALUES (%s, %s, %s, %s)
+                """,
+                (equipe, alimento, quantidade, peso_total)
+            )
+
             conexao.commit()
             conexao.close()
-            print(f"✅ Salvo no DB: {quantidade}x {nome_alimento} ({peso_total}kg) - Equipe: {equipe}")
+
+            print(f"✅ Salvo no DB: {quantidade}x {alimento} ({peso_total}kg) - Equipe: {equipe}")
+
         except Exception as e:
             print(f"⚠️ Erro ao salvar no banco: {e}")
-            
-    # Executa a função em uma thread separada para não causar lag no vídeo
-    threading.Thread(target=run).start()
-# ==============================================================================
 
-# ==============================================================================
-# TELA DE SELEÇÃO DE GRUPO (BANCO DE DADOS)
-# ==============================================================================
-grupo_selecionado = None
+    threading.Thread(target=run, daemon=True).start()
+
 
 def obter_grupos_db():
     try:
-        conexao = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="230604",
-            database="liderai"
-        )
+        conexao = conectar_banco()
         cursor = conexao.cursor()
-        cursor.execute("SELECT DISTINCT team_group FROM users WHERE team_group IS NOT NULL AND team_group != ''")
+
+        cursor.execute("""
+            SELECT DISTINCT team_group 
+            FROM users 
+            WHERE team_group IS NOT NULL 
+            AND team_group != ''
+        """)
+
         grupos = [linha[0] for linha in cursor.fetchall()]
         conexao.close()
-        
+
         return grupos if grupos else ["Nenhum grupo cadastrado no DB"]
+
     except Exception as e:
         print(f"⚠️ Erro ao conectar no MySQL: {e}")
         return ["Grupo A (Modo Offline)", "Grupo B (Modo Offline)"]
 
-def iniciar_interface_selecao():
-    global grupo_selecionado
+
+# ==============================================================================
+# SELEÇÃO DO GRUPO
+# ==============================================================================
+
+def selecionar_grupo():
     grupos = obter_grupos_db()
-    
+    selecionado = {"grupo": None}
+
     janela = tk.Tk()
     janela.title("LiderAI - Configuração de Sessão")
     janela.geometry("380x180")
-    janela.eval('tk::PlaceWindow . center')
-    
-    tk.Label(janela, text="Selecione a sua equipe:", font=("Arial", 12, "bold")).pack(pady=15)
-    
-    combo_grupos = ttk.Combobox(janela, values=grupos, state="readonly", font=("Arial", 11), width=30)
-    combo_grupos.pack(pady=5)
-    if grupos:
-        combo_grupos.current(0)
-        
-    def confirmar():
-        global grupo_selecionado
-        grupo_selecionado = combo_grupos.get()
-        janela.destroy()
-        
-    btn = tk.Button(janela, text="🚀 Iniciar Detecção", command=confirmar, bg="#28a745", fg="white", font=("Arial", 11, "bold"))
-    btn.pack(pady=15)
-    janela.mainloop()
+    janela.eval("tk::PlaceWindow . center")
 
-iniciar_interface_selecao()
+    tk.Label(
+        janela,
+        text="Selecione a sua equipe:",
+        font=("Arial", 12, "bold")
+    ).pack(pady=15)
+
+    combo = ttk.Combobox(
+        janela,
+        values=grupos,
+        state="readonly",
+        font=("Arial", 11),
+        width=30
+    )
+    combo.pack(pady=5)
+    combo.current(0)
+
+    def confirmar():
+        selecionado["grupo"] = combo.get()
+        janela.destroy()
+
+    tk.Button(
+        janela,
+        text="🚀 Iniciar Detecção",
+        command=confirmar,
+        bg="#28a745",
+        fg="white",
+        font=("Arial", 11, "bold")
+    ).pack(pady=15)
+
+    janela.mainloop()
+    return selecionado["grupo"]
+
+
+# ==============================================================================
+# FONTE DE IMAGEM
+# ==============================================================================
+
+def identificar_fonte(source):
+    img_ext = [".jpg", ".jpeg", ".png", ".bmp", ".JPG", ".JPEG", ".PNG", ".BMP"]
+    vid_ext = [".avi", ".mov", ".mp4", ".mkv", ".wmv"]
+
+    if os.path.isdir(source):
+        imagens = [
+            f for f in glob.glob(source + "/*")
+            if os.path.splitext(f)[1] in img_ext
+        ]
+        return "folder", imagens
+
+    if os.path.isfile(source):
+        _, ext = os.path.splitext(source)
+
+        if ext in img_ext:
+            return "image", [source]
+
+        if ext in vid_ext:
+            return "video", source
+
+    if source.startswith("usb"):
+        return "usb", int(source[3:])
+
+    print("Fonte inválida.")
+    sys.exit(0)
+
+
+def abrir_captura(source_type, source_data, resW, resH):
+    if source_type in ["usb", "video"]:
+        cap = cv2.VideoCapture(source_data)
+        cap.set(3, resW)
+        cap.set(4, resH)
+        return cap
+
+    return None
+
+
+def ler_frame(source_type, source_data, cap, img_count):
+    if source_type in ["image", "folder"]:
+        if img_count >= len(source_data):
+            return None, img_count, False
+
+        frame = cv2.imread(source_data[img_count])
+        return frame, img_count + 1, frame is not None
+
+    ret, frame = cap.read()
+    return frame, img_count, ret
+
+
+# ==============================================================================
+# CONVERSÃO DE CLASSES
+# ==============================================================================
+
+def obter_nome_alimento(classe_modelo):
+    return NOMES_ALIMENTOS.get(classe_modelo, classe_modelo)
+
+
+def obter_peso_classe(classe_modelo):
+    return PESOS_CLASSES.get(classe_modelo, 0.0)
+
+
+def calcular_peso_total(contagens_peso):
+    return sum(contagens_peso.values())
+
+
+def texto_contagem(contagens_peso):
+    if not contagens_peso:
+        return "Aguardando itens..."
+
+    partes = []
+
+    for alimento, peso in contagens_peso.items():
+        partes.append(f"{peso:.1f}KG {alimento}")
+
+    return " | ".join(partes)
+
+
+# ==============================================================================
+# TRACKING / ANTI-DUPLICAÇÃO
+# ==============================================================================
+
+def atualizar_tracker(tracked_objects, detections, next_object_id):
+    novos = []
+
+    for det in detections:
+        obj_match = None
+        menor_distancia = DISTANCIA_MAX_ASSOCIACAO
+
+        for obj in tracked_objects:
+            dist = math.hypot(det["cx"] - obj["cx"], det["cy"] - obj["cy"])
+
+            if (
+                dist < menor_distancia
+                and obj["classe_modelo"] == det["classe_modelo"]
+                and not obj.get("matched", False)
+            ):
+                obj_match = obj
+                menor_distancia = dist
+
+        if obj_match:
+            obj_match["cx"] = det["cx"]
+            obj_match["cy"] = det["cy"]
+            obj_match["frames_visivel"] += 1
+            obj_match["frames_sumido"] = 0
+            obj_match["matched"] = True
+            novos.append(obj_match)
+
+        else:
+            novos.append({
+                "id": next_object_id,
+                "cx": det["cx"],
+                "cy": det["cy"],
+                "classe_modelo": det["classe_modelo"],
+                "frames_visivel": 1,
+                "frames_sumido": 0,
+                "contado": False,
+                "matched": True
+            })
+
+            next_object_id += 1
+
+    for obj in tracked_objects:
+        if not obj.get("matched", False):
+            obj["frames_sumido"] += 1
+
+            if obj["frames_sumido"] < FRAMES_MAX_SUMIDO:
+                novos.append(obj)
+
+    for obj in novos:
+        obj["matched"] = False
+
+    return novos, next_object_id
+
+
+def contar_objetos(tracked_objects, contagens_peso, contagens_unidade, grupo):
+    for obj in tracked_objects:
+        if not obj["contado"] and obj["frames_visivel"] >= FRAMES_PARA_CONTAR:
+            obj["contado"] = True
+
+            classe_modelo = obj["classe_modelo"]
+            alimento = obter_nome_alimento(classe_modelo)
+            peso = obter_peso_classe(classe_modelo)
+
+            contagens_peso[alimento] = contagens_peso.get(alimento, 0.0) + peso
+            contagens_unidade[alimento] = contagens_unidade.get(alimento, 0) + 1
+
+            salvar_banco_async(grupo, alimento, 1, peso)
+
+            print(
+                f"✅ CONTADO: {alimento} "
+                f"| +{peso:.1f}KG "
+                f"| Total {alimento}: {contagens_peso[alimento]:.1f}KG"
+            )
+
+    return contagens_peso, contagens_unidade
+
+
+# ==============================================================================
+# PROGRAMA PRINCIPAL
+# ==============================================================================
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--model", default="my_model.pt")
+parser.add_argument("--source", default="usb0")
+parser.add_argument("--thresh", default=0.5)
+parser.add_argument("--resolution", default="1280x720")
+parser.add_argument("--record", action="store_true")
+
+args = parser.parse_args()
+
+resW, resH = map(int, args.resolution.split("x"))
+min_thresh = float(args.thresh)
+
+if not os.path.exists(args.model):
+    print("ERRO: modelo não encontrado.")
+    sys.exit(0)
+
+
+# 1. Seleção do grupo
+grupo_selecionado = selecionar_grupo()
 
 if not grupo_selecionado:
-    print("Nenhum grupo selecionado. Encerrando sistema.")
+    print("Nenhum grupo selecionado. Encerrando.")
     sys.exit(0)
 
 print(f"\n✅ Sessão iniciada para a equipe: {grupo_selecionado}")
 
-# ==============================================================================
-# TABELA DE PESOS PADRÃO (Em KG)
-# ==============================================================================
-PESOS_PADRAO = {
-    '1kg_rice_package': 1.0,
-    '5kg_rice_package': 5.0,
-    'beans_package': 1.0,
-    'fuba_package': 0.5,
-    'oil_package': 0.9,
-    'pasta_package': 0.5,
-    'spaghetti_package': 0.5,
-    'sugar_package': 1.0
-}
 
-# Configurações de Argumentos
-parser = argparse.ArgumentParser()
-parser.add_argument('--model', help='Path to YOLO model file', default='my_model.pt')
-parser.add_argument('--source', help='Image source (usb0, file, etc)', default='usb0')
-parser.add_argument('--thresh', help='Minimum confidence threshold', default=0.5)
-parser.add_argument('--resolution', help='Resolution in WxH', default='1280x720')
-parser.add_argument('--record', help='Record results', action='store_true')
-
-args = parser.parse_args()
-
-model_path = args.model
-img_source = args.source
-min_thresh = float(args.thresh)
-user_res = args.resolution
-record = args.record
-
-if not os.path.exists(model_path):
-    print('ERROR: Model path is invalid or model was not found.')
-    sys.exit(0)
-
-print("\nCarregando IA...")
-model = YOLO(model_path, task='detect')
-labels = model.names
-
-img_ext_list = ['.jpg','.JPG','.jpeg','.JPEG','.png','.PNG','.bmp','.BMP']
-vid_ext_list = ['.avi','.mov','.mp4','.mkv','.wmv']
-
-if os.path.isdir(img_source):
-    source_type = 'folder'
-elif os.path.isfile(img_source):
-    _, ext = os.path.splitext(img_source)
-    if ext in img_ext_list: source_type = 'image'
-    elif ext in vid_ext_list: source_type = 'video'
-    else: sys.exit(0)
-elif 'usb' in img_source:
-    source_type = 'usb'
-    usb_idx = int(img_source[3:])
-elif 'picamera' in img_source:
-    source_type = 'picamera'
-    picam_idx = int(img_source[8:])
-else:
-    sys.exit(0)
-
-resize = False
-if user_res:
-    resize = True
-    resW, resH = int(user_res.split('x')[0]), int(user_res.split('x')[1])
-
-if record:
-    record_name = 'demo1.avi'
-    recorder = cv2.VideoWriter(record_name, cv2.VideoWriter_fourcc(*'MJPG'), 30, (resW,resH))
-
-if source_type == 'image': imgs_list = [img_source]
-elif source_type == 'folder':
-    imgs_list = [f for f in glob.glob(img_source + '/*') if os.path.splitext(f)[1] in img_ext_list]
-elif source_type in ['video', 'usb']:
-    cap_arg = img_source if source_type == 'video' else usb_idx
-    cap = cv2.VideoCapture(cap_arg)
-    if user_res:
-        cap.set(3, resW)
-        cap.set(4, resH)
-elif source_type == 'picamera':
-    from picamera2 import Picamera2
-    cap = Picamera2()
-    cap.configure(cap.create_video_configuration(main={"format": 'XRGB8888', "size": (resW, resH)}))
-    cap.start()
-
-# CALIBRAÇÃO FIXA
-pontos_imagem_pixel = np.array([[47, 31], [555, 32], [558, 443], [60, 432]], dtype="float32")
-pontos_real_cm = np.array([[0, 0], [50, 0], [50, 50], [0, 50]], dtype="float32")
-matriz_medidas, _ = cv2.findHomography(pontos_imagem_pixel, pontos_real_cm)
-
-bbox_colors = [(164,120,87), (68,148,228), (93,97,209), (178,182,133), (88,159,106), 
-              (96,202,231), (159,124,168), (169,162,241), (98,118,150), (172,176,184)]
-
-avg_frame_rate = 0
-frame_rate_buffer = []
-fps_avg_len = 200
+# 2. Preparação da fonte
+source_type, source_data = identificar_fonte(args.source)
+cap = abrir_captura(source_type, source_data, resW, resH)
 img_count = 0
 
-# ==============================================================================
-# VARIÁVEIS DO TRACKER (RASTREADOR PARA EVITAR DUPLICIDADE)
-# ==============================================================================
-tracked_objects = [] 
-global_counts = {} # Acumula o total de itens cruzados na sessão
-linha_contagem_y = resH // 2 if resize else 360 # Define a linha no meio da tela
-# ==============================================================================
 
-print(f"\n🚀 Monitoramento ativo para: {grupo_selecionado}")
+# 3. Carregamento do YOLO
+print("\nCarregando IA...")
+model = YOLO(args.model, task="detect")
+labels = model.names
+
+
+# 4. Gravação opcional
+if args.record:
+    recorder = cv2.VideoWriter(
+        "demo1.avi",
+        cv2.VideoWriter_fourcc(*"MJPG"),
+        30,
+        (resW, resH)
+    )
+
+
+# 5. Variáveis de contagem
+tracked_objects = []
+contagens_peso = {}
+contagens_unidade = {}
+next_object_id = 1
+frame_rate_buffer = []
+avg_frame_rate = 0
+
+bbox_colors = [
+    (164, 120, 87),
+    (68, 148, 228),
+    (93, 97, 209),
+    (178, 182, 133),
+    (88, 159, 106),
+    (96, 202, 231),
+    (159, 124, 168),
+    (169, 162, 241),
+    (98, 118, 150),
+    (172, 176, 184)
+]
+
+print("\n🚀 Contagem iniciada.")
+
+
+# ==============================================================================
+# LOOP PRINCIPAL
+# ==============================================================================
 
 while True:
-    t_start = time.perf_counter()
+    inicio = time.perf_counter()
 
-    if source_type in ['image', 'folder']:
-        if img_count >= len(imgs_list): break
-        frame = cv2.imread(imgs_list[img_count])
-        img_count += 1
-    elif source_type in ['video', 'usb']:
-        ret, frame = cap.read()
-        if not ret: break
-    elif source_type == 'picamera':
-        frame_bgra = cap.capture_array()
-        frame = cv2.cvtColor(np.copy(frame_bgra), cv2.COLOR_BGRA2BGR)
-        if frame is None: break
+    frame, img_count, ok = ler_frame(source_type, source_data, cap, img_count)
 
-    if resize: frame = cv2.resize(frame,(resW,resH))
+    if not ok or frame is None:
+        break
+
+    frame = cv2.resize(frame, (resW, resH))
 
     results = model(frame, verbose=False)
     detections = results[0].boxes
-    
-    current_detections = [] # Lista temporária para o tracker
+    detections_validas = []
 
     for i in range(len(detections)):
-        xyxy = detections[i].xyxy.cpu().numpy().squeeze()
-        if xyxy.ndim == 0: continue 
+        box = detections[i]
+        conf = box.conf.item()
+
+        if conf < min_thresh:
+            continue
+
+        xyxy = box.xyxy.cpu().numpy().squeeze()
+
+        if xyxy.ndim == 0:
+            continue
+
         xmin, ymin, xmax, ymax = xyxy.astype(int)
-        conf = detections[i].conf.item()
+        classidx = int(box.cls.item())
+        classe_modelo = labels[classidx]
 
-        if conf > min_thresh:
-            classidx = int(detections[i].cls.item())
-            classname = labels[classidx]
-            color = bbox_colors[classidx % 10]
-            
-            # Adiciona a detecção para o rastreamento
-            current_detections.append({
-                'xmin': xmin, 'ymin': ymin, 'xmax': xmax, 'ymax': ymax,
-                'classname': classname
-            })
-            
-            cv2.rectangle(frame, (xmin,ymin), (xmax,ymax), color, 2)
+        alimento = obter_nome_alimento(classe_modelo)
+        peso = obter_peso_classe(classe_modelo)
 
-            # CÁLCULO DE TAMANHO
-            base_esq_pixel = np.array([[[xmin, ymax]]], dtype="float32")
-            base_dir_pixel = np.array([[[xmax, ymax]]], dtype="float32")
+        cx = (xmin + xmax) // 2
+        cy = (ymin + ymax) // 2
 
-            base_esq_cm = cv2.perspectiveTransform(base_esq_pixel, matriz_medidas)[0][0]
-            base_dir_cm = cv2.perspectiveTransform(base_dir_pixel, matriz_medidas)[0][0]
+        detections_validas.append({
+            "cx": cx,
+            "cy": cy,
+            "classe_modelo": classe_modelo
+        })
 
-            largura_cm = math.sqrt((base_dir_cm[0] - base_esq_cm[0])**2 + (base_dir_cm[1] - base_esq_cm[1])**2)
-            cv2.line(frame, (xmin, ymax), (xmax, ymax), (0, 255, 255), 3)
+        color = bbox_colors[classidx % len(bbox_colors)]
+        label = f"{alimento}: {int(conf * 100)}% | {peso:.1f}KG"
 
-            label = f'{classname}: {int(conf*100)}% | {largura_cm:.1f}cm'
-            
-            labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-            label_ymin = max(ymin, labelSize[1] + 10)
-            cv2.rectangle(frame, (xmin, label_ymin-labelSize[1]-10), (xmin+labelSize[0], label_ymin+baseLine-10), color, cv2.FILLED)
-            cv2.putText(frame, label, (xmin, label_ymin-7), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+        cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), color, 2)
 
-    # ==============================================================================
-    # LÓGICA DE TRACKING E LINHA DE PASSAGEM
-    # ==============================================================================
-    novos_rastreados = []
-    for d in current_detections:
-        cx = (d['xmin'] + d['xmax']) // 2
-        cy = (d['ymin'] + d['ymax']) // 2
-        
-        obj_match = None
-        min_dist = 80 # Distância máxima em pixels para ser considerado o mesmo objeto
-        
-        for obj in tracked_objects:
-            dist = math.hypot(cx - obj['cx'], cy - obj['cy'])
-            if dist < min_dist and obj['classe'] == d['classname'] and not obj.get('matched', False):
-                obj_match = obj
-                min_dist = dist
-                
-        if obj_match:
-            obj_match['cx'] = cx
-            obj_match['cy'] = cy
-            obj_match['frames_sumido'] = 0
-            obj_match['matched'] = True
-            novos_rastreados.append(obj_match)
-        else:
-            # É um objeto novo na tela
-            novos_rastreados.append({
-                'cx': cx, 'cy': cy, 'classe': d['classname'],
-                'contado': False, 'frames_sumido': 0, 'matched': True
-            })
-            
-    # Mantém na memória objetos que piscaram/sumiram rápido
-    for obj in tracked_objects:
-        if not obj.get('matched', False):
-            obj['frames_sumido'] += 1
-            if obj['frames_sumido'] < 10:
-                novos_rastreados.append(obj)
-                
-    for obj in novos_rastreados:
-        obj['matched'] = False
-        
-    tracked_objects = novos_rastreados
-    
-    # Desenha a Linha de Contagem (Azul)
-    w_frame = resW if resize else frame.shape[1]
-    cv2.line(frame, (0, linha_contagem_y), (w_frame, linha_contagem_y), (255, 0, 0), 2)
-    cv2.putText(frame, "LINHA DE CONTAGEM", (10, linha_contagem_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-    
-    # Verifica quem cruzou a linha (de cima para baixo)
-    for obj in tracked_objects:
-        if not obj['contado'] and obj['cy'] > linha_contagem_y:
-            obj['contado'] = True
-            
-            # Incrementa o total geral da sessão
-            global_counts[obj['classe']] = global_counts.get(obj['classe'], 0) + 1
-            peso = PESOS_PADRAO.get(obj['classe'], 0.0)
-            
-            # DISPARA A FUNÇÃO PARA SALVAR NO BANCO
-            salvar_banco_async(grupo_selecionado, obj['classe'], 1, peso)
-            
-            # Feedback visual verde no centro do objeto
-            cv2.circle(frame, (obj['cx'], obj['cy']), 20, (0, 255, 0), -1)
-    # ==============================================================================
+        cv2.putText(
+            frame,
+            label,
+            (xmin, max(20, ymin - 10)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            color,
+            2
+        )
 
-    # ==============================================================================
-    # GERAÇÃO DO RELATÓRIO JSON COM OS DADOS ACUMULADOS (TOTAIS)
-    # ==============================================================================
-    relatorio = {
-        "status": "ativo",
-        "equipe": grupo_selecionado,
-        "peso_total_kg": 0.0,
-        "itens": {}
-    }
+    tracked_objects, next_object_id = atualizar_tracker(
+        tracked_objects,
+        detections_validas,
+        next_object_id
+    )
 
-    count_display = ""
-    # Agora usa global_counts (acumulado) em vez do count temporário
-    if global_counts:
-        for nome, qtd in global_counts.items():
-            peso_unitario = PESOS_PADRAO.get(nome, 0.0)
-            subtotal_kg = qtd * peso_unitario
-            
-            relatorio["itens"][nome] = {
-                "quantidade": qtd,
-                "peso_unitario_kg": peso_unitario,
-                "subtotal_kg": subtotal_kg
-            }
-            relatorio["peso_total_kg"] += subtotal_kg
-            count_display += f"{qtd}x {nome} | "
-            
-        count_display = count_display[:-3]
-    else:
-        count_display = "Aguardando itens cruzarem a linha..."
+    contagens_peso, contagens_unidade = contar_objetos(
+        tracked_objects,
+        contagens_peso,
+        contagens_unidade,
+        grupo_selecionado
+    )
 
-    with open('dados_liderai.json', 'w', encoding='utf-8') as f:
-        json.dump(relatorio, f, indent=4, ensure_ascii=False)
+    peso_total = calcular_peso_total(contagens_peso)
 
-    # Exibição na tela
-    cv2.putText(frame, f"EQUIPE: {grupo_selecionado}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    cv2.putText(frame, count_display, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-    cv2.putText(frame, f"TOTAL ACUMULADO: {relatorio['peso_total_kg']:.2f} KG", (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-    # ==============================================================================
-    
-    cv2.imshow('LiderAI - Detector, Medidor e Pesagem', frame)
-    if record: recorder.write(frame)
+    cv2.putText(
+        frame,
+        f"EQUIPE: {grupo_selecionado}",
+        (10, 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (255, 255, 255),
+        2
+    )
 
-    key = cv2.waitKey(0 if source_type in ['image', 'folder'] else 5)
-    if key in [ord('q'), ord('Q')]: break
-    elif key in [ord('s'), ord('S')]: cv2.waitKey()
-    elif key in [ord('p'), ord('P')]: cv2.imwrite('capture.png', frame)
-    
-    t_stop = time.perf_counter()
-    frame_rate_buffer.append(float(1/(t_stop - t_start)))
-    if len(frame_rate_buffer) >= fps_avg_len: frame_rate_buffer.pop(0)
-    avg_frame_rate = np.mean(frame_rate_buffer)
+    cv2.putText(
+        frame,
+        texto_contagem(contagens_peso),
+        (10, 60),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (0, 255, 255),
+        2
+    )
 
-print(f'Average pipeline FPS: {avg_frame_rate:.2f}')
+    cv2.putText(
+        frame,
+        f"TOTAL: {peso_total:.1f}KG",
+        (10, 90),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (0, 255, 0),
+        2
+    )
 
-if source_type in ['video', 'usb']: cap.release()
-elif source_type == 'picamera': cap.stop()
-if record: recorder.release()
+    cv2.imshow("LiderAI - Detector e Pesagem", frame)
+
+    if args.record:
+        recorder.write(frame)
+
+    tecla = cv2.waitKey(0 if source_type in ["image", "folder"] else 5)
+
+    if tecla in [ord("q"), ord("Q")]:
+        break
+
+    if tecla in [ord("p"), ord("P")]:
+        cv2.imwrite("capture.png", frame)
+
+    fim = time.perf_counter()
+
+    if fim - inicio > 0:
+        frame_rate_buffer.append(1 / (fim - inicio))
+
+    if len(frame_rate_buffer) > 200:
+        frame_rate_buffer.pop(0)
+
+    if frame_rate_buffer:
+        avg_frame_rate = np.mean(frame_rate_buffer)
+
+
+print(f"Average pipeline FPS: {avg_frame_rate:.2f}")
+
+if source_type in ["usb", "video"]:
+    cap.release()
+
+if args.record:
+    recorder.release()
+
 cv2.destroyAllWindows()
