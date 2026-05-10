@@ -18,9 +18,93 @@ O **LiderAI** representa a evolução tecnológica da iniciativa **Lideranças E
 
 O projeto tem como objetivo automatizar parte do processo de triagem e contabilização das doações, reduzindo a dependência de registros manuais e tornando o acompanhamento das arrecadações mais rápido, organizado e confiável.
 
-A solução utiliza **visão computacional com YOLO** para identificar alimentos por meio de câmera ou celular conectado. O sistema reconhece categorias como **arroz, feijão, macarrão, óleo, açúcar e fubá**, converte os nomes técnicos do modelo em nomes amigáveis e soma automaticamente o peso total arrecadado por categoria.
+A solução utiliza **visão computacional com YOLO** para identificar alimentos por meio de câmera, webcam ou celular conectado. O sistema reconhece categorias como **arroz, feijão, macarrão, óleo, açúcar e fubá**, converte os nomes técnicos do modelo em nomes amigáveis e soma automaticamente o peso total arrecadado por categoria.
 
-Além do módulo de Inteligência Artificial, o projeto conta com um **backend em Node.js**, responsável pela comunicação com o banco de dados **MySQL**, e uma interface web desenvolvida em **React com TypeScript e Vite**, permitindo o acesso a funcionalidades como login, cadastro, dashboard, histórico, ranking, administração e acompanhamento dos dados da detecção por IA.
+Além do módulo de Inteligência Artificial, o projeto conta com um **backend em Node.js hospedado no Azure App Service**, responsável pela comunicação com o banco de dados **MySQL hospedado na Aiven**, e uma interface web desenvolvida em **React com TypeScript e Vite**.
+
+A interface permite acesso a funcionalidades como login, cadastro, dashboard, histórico, ranking, administração de grupos e acompanhamento dos dados enviados pela detecção por IA.
+
+---
+
+## ✅ Status atual do sistema
+
+O sistema encontra-se funcional com a seguinte arquitetura:
+
+```text
+Frontend React/Vite
+        ↓
+Backend Node.js hospedado no Azure App Service
+        ↓
+Banco MySQL hospedado na Aiven
+```
+
+O módulo de Inteligência Artificial também foi ajustado para utilizar o backend em nuvem. Dessa forma, o detector não se conecta diretamente ao banco de dados. Ele executa localmente apenas porque depende de câmera, webcam, DroidCam ou outro dispositivo de vídeo conectado à máquina.
+
+```text
+Detector de IA local
+        ↓
+Backend Node.js hospedado no Azure App Service
+        ↓
+Banco MySQL hospedado na Aiven
+```
+
+### Estado atual dos módulos
+
+- ✅ **Frontend:** funcional e configurado para consumir o backend hospedado no Azure.
+- ✅ **Backend:** hospedado no Azure App Service e conectado ao banco MySQL da Aiven.
+- ✅ **Banco de dados:** hospedado na Aiven, com tabelas para usuários, grupos e arrecadações.
+- ✅ **Login e cadastro:** integrados ao backend online.
+- ✅ **Administração:** permite visualizar usuários, criar grupos e alocar usuários em grupos.
+- ✅ **Dashboard e histórico:** consomem os dados registrados no banco.
+- ✅ **Detector de IA:** funcional localmente, buscando grupos pela API online e registrando arrecadações pela API online.
+- ✅ **Detector sem credenciais locais de banco:** o script de IA não precisa de credenciais do banco para ser executado.
+- ⚠️ **Execução do detector:** ainda precisa ser local, pois depende de câmera, webcam, DroidCam ou outro dispositivo de vídeo conectado à máquina.
+
+---
+
+## 🌐 Backend em produção
+
+A API do backend está hospedada em:
+
+```text
+https://liderai-backend-arthur-dmbmckczgbftg9hk.eastus-01.azurewebsites.net
+```
+
+Rotas principais para teste:
+
+```text
+/
+```
+
+```text
+/api/users
+```
+
+```text
+/api/groups
+```
+
+```text
+/api/historico
+```
+
+```text
+/api/arrecadacao
+```
+
+Exemplos de teste no navegador:
+
+```text
+https://liderai-backend-arthur-dmbmckczgbftg9hk.eastus-01.azurewebsites.net
+```
+
+```text
+https://liderai-backend-arthur-dmbmckczgbftg9hk.eastus-01.azurewebsites.net/api/groups
+```
+
+```text
+https://liderai-backend-arthur-dmbmckczgbftg9hk.eastus-01.azurewebsites.net/api/historico
+```
 
 ---
 
@@ -47,7 +131,7 @@ Além do módulo de Inteligência Artificial, o projeto conta com um **backend e
 
 ### 👁️ Visão Computacional
 
-O módulo de visão computacional foi desenvolvido em **Python**, utilizando **YOLO**, **Ultralytics**, **OpenCV** e **NumPy**. Ele é responsável por detectar alimentos em tempo real a partir de uma câmera ou celular conectado.
+O módulo de visão computacional foi desenvolvido em **Python**, utilizando **YOLO**, **Ultralytics**, **OpenCV** e **NumPy**. Ele é responsável por detectar alimentos em tempo real a partir de uma câmera, webcam ou celular conectado.
 
 As classes técnicas utilizadas no treinamento do modelo são convertidas para nomes amigáveis. Por exemplo, `1kg_rice_package` e `5kg_rice_package` são exibidas como **arroz**, com seus respectivos pesos somados automaticamente.
 
@@ -71,9 +155,11 @@ Essa estratégia reduz erros causados por oscilações da câmera, pequenas falh
 
 ### 🖥️ Backend
 
-O backend foi desenvolvido em **Node.js**, sendo responsável por organizar as rotas, controlar a comunicação com o banco de dados e registrar as informações das arrecadações.
+O backend foi desenvolvido em **Node.js** com **Express**, sendo responsável por organizar as rotas, controlar a comunicação com o banco de dados e registrar as informações das arrecadações.
 
-Os dados processados pelo modelo de IA são enviados para um banco **MySQL**, permitindo armazenar informações como equipe, alimento detectado, quantidade, peso e data do registro.
+Atualmente, o backend está hospedado no **Azure App Service** e se conecta a um banco **MySQL hospedado na Aiven**. Isso permite que o frontend e o detector de IA utilizem dados centralizados sem exigir que o usuário rode o backend localmente.
+
+Os dados armazenados incluem informações como equipe, alimento detectado, quantidade, peso e data do registro.
 
 ---
 
@@ -81,7 +167,19 @@ Os dados processados pelo modelo de IA são enviados para um banco **MySQL**, pe
 
 A interface web foi desenvolvida em **React com TypeScript**, utilizando **Vite** como ambiente de desenvolvimento.
 
-O frontend permite ao usuário interagir com o sistema por meio de telas como login, cadastro, dashboard, histórico, ranking, administração e visualização dos dados relacionados à detecção por IA.
+O frontend está configurado para consumir o backend online hospedado no Azure. Dessa forma, para testar a interface web, o usuário precisa apenas instalar as dependências do frontend e executar o projeto localmente.
+
+---
+
+### 🧠 Detector de IA
+
+O detector de IA é executado separadamente, pois depende de câmera, webcam ou celular conectado à máquina.
+
+Ele busca os grupos cadastrados por meio da API online, permite selecionar a equipe responsável pela sessão e envia automaticamente os registros detectados para o backend hospedado no Azure.
+
+O backend, por sua vez, registra os dados no banco MySQL hospedado na Aiven.
+
+Assim, o detector não precisa acessar diretamente o banco de dados nem armazenar credenciais sensíveis localmente.
 
 ---
 
@@ -114,13 +212,23 @@ Projeto14/
 
 📂 **src/Entrega 02/Inteligência Artificial e Aprendizado de Máquina:** contém o modelo de visão computacional, o script principal de detecção, o arquivo de dependências e a documentação específica do módulo de IA.
 
-📂 **src/Entrega 02/backend:** contém a aplicação backend em Node.js, responsável pela comunicação com o banco de dados e organização das rotas.
+📂 **src/Entrega 02/backend:** contém a aplicação backend em Node.js, responsável pela comunicação com o banco de dados e organização das rotas. Atualmente, essa aplicação está hospedada no Azure App Service.
 
 📂 **src/Entrega 02/frontend:** contém a interface web desenvolvida em React com TypeScript e Vite.
 
 ---
 
-## 🛠️ Tutorial de instalação local
+## 🛠️ Como executar o sistema atualmente
+
+### Execução recomendada
+
+Atualmente, para utilizar o sistema web, **não é necessário rodar o backend localmente**, pois ele já está hospedado no Azure.
+
+O usuário precisa apenas rodar o frontend localmente.
+
+---
+
+## 🌐 Executar o frontend
 
 ### 1. Clonar o repositório
 
@@ -134,81 +242,85 @@ cd Projeto14
 
 ---
 
-### 2. Rodar o backend
-
-Acesse a pasta do backend:
-
-```bash
-cd "src/Entrega 02/backend"
-```
-
-Instale as dependências:
-
-```bash
-npm install
-```
-
-Execute o backend:
-
-```bash
-npm start
-```
-
-ou, se estiver usando modo de desenvolvimento:
-
-```bash
-npm run dev
-```
-
----
-
-### 3. Rodar o frontend
-
-Acesse a pasta do frontend:
+### 2. Acessar a pasta do frontend
 
 ```bash
 cd "src/Entrega 02/frontend"
 ```
 
-Instale as dependências:
+---
+
+### 3. Instalar as dependências
 
 ```bash
 npm install
 ```
 
-Execute o frontend:
+---
+
+### 4. Executar o frontend
 
 ```bash
 npm run dev
 ```
 
+O Vite exibirá um endereço local, normalmente:
+
+```text
+http://localhost:5173
+```
+
+Acesse esse endereço no navegador.
+
+O frontend já está configurado para consumir a API hospedada no Azure:
+
+```text
+https://liderai-backend-arthur-dmbmckczgbftg9hk.eastus-01.azurewebsites.net
+```
+
+Assim, o usuário não precisa configurar banco de dados, backend local ou credenciais para testar a interface web.
+
 ---
 
-### 4. Rodar o módulo de Visão Computacional
+## 👁️ Executar o módulo de Visão Computacional
 
-Acesse a pasta do módulo de IA:
+O módulo de IA deve ser executado localmente, pois depende do acesso a uma câmera, webcam, DroidCam ou outro dispositivo de vídeo conectado.
+
+Mesmo sendo executado localmente, o detector utiliza o backend hospedado no Azure para buscar grupos e registrar arrecadações.
+
+### 1. Acessar a pasta do módulo de IA
 
 ```bash
 cd "src/Entrega 02/Inteligência Artificial e Aprendizado de Máquina"
 ```
 
-Instale as dependências:
+---
+
+### 2. Instalar as dependências
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Execute o detector usando celular ou câmera principal:
+---
+
+### 3. Executar o detector
+
+Usando a câmera principal:
 
 ```bash
 python yolo_detect.py --source usb0 --model my_model.pt --thresh 0.5 --resolution 1280x720
 ```
 
-Para uma câmera externa ou outro dispositivo de vídeo:
+Para câmera externa, DroidCam ou outro dispositivo de vídeo:
 
 ```bash
 python yolo_detect.py --source usb1 --model my_model.pt --thresh 0.5 --resolution 1280x720
 ```
+
+Durante a execução, o sistema abrirá uma janela para selecionar o grupo responsável pela contagem. Os grupos são buscados diretamente pela API hospedada no Azure.
+
+Após a detecção dos alimentos, os registros são enviados para o backend online, que realiza o cadastro no banco MySQL da Aiven. Os dados poderão ser visualizados no dashboard e no histórico da interface web.
 
 ---
 
@@ -235,6 +347,8 @@ python yolo_detect.py --source usb1 --model my_model.pt --thresh 0.5 --resolutio
 ### Banco de dados e backend
 
 ![MySQL](https://img.shields.io/badge/MySQL-005C84?style=for-the-badge&logo=mysql&logoColor=white)
+![Aiven](https://img.shields.io/badge/Aiven-FF4A00?style=for-the-badge&logoColor=white)
+![Azure](https://img.shields.io/badge/Azure%20App%20Service-0078D4?style=for-the-badge&logo=microsoftazure&logoColor=white)
 ![REST API](https://img.shields.io/badge/REST%20API-000000?style=for-the-badge&logoColor=white)
 
 ### Organização e versionamento
@@ -253,8 +367,12 @@ python yolo_detect.py --source usb1 --model my_model.pt --thresh 0.5 --resolutio
 - Soma automática de peso por categoria de alimento.
 - Redução de duplicidade por rastreamento simples entre frames.
 - Registro das contagens por equipe em banco de dados MySQL.
-- Backend em Node.js para comunicação com os dados.
+- Detector de IA integrado ao backend em nuvem.
+- Backend em Node.js hospedado no Azure.
+- Banco de dados MySQL hospedado na Aiven.
 - Interface web em React com TypeScript.
+- Login e cadastro integrados ao backend.
+- Administração de grupos e usuários.
 - Visualização de informações em dashboard, histórico e ranking.
 
 ---
@@ -273,6 +391,14 @@ fubá
 ```
 
 As classes técnicas do modelo são convertidas para esses nomes durante a execução do detector.
+
+---
+
+## 🔐 Observações de segurança
+
+- O frontend consome o backend hospedado no Azure.
+- O detector de IA não utiliza credenciais locais de banco.
+- As credenciais do banco ficam configuradas diretamente no Azure App Service, como variáveis do ambiente de produção do backend.
 
 ---
 
