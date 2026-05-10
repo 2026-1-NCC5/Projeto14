@@ -10,22 +10,15 @@ from tkinter import ttk
 
 import cv2
 import numpy as np
-import mysql.connector
-from dotenv import load_dotenv
+import requests
 from ultralytics import YOLO
 
-load_dotenv()
 
 # ==============================================================================
-# CONFIGURAÇÕES DO BANCO DE DADOS
+# CONFIGURAÇÕES DA API
 # ==============================================================================
 
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = int(os.getenv("DB_PORT", "3306"))
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_NAME = os.getenv("DB_NAME")
-DB_SSL = os.getenv("DB_SSL", "false").lower() == "true"
+API_BASE_URL = "https://liderai-backend-arthur-dmbmckczgbftg9hk.eastus-01.azurewebsites.net"
 
 
 # ==============================================================================
@@ -60,109 +53,65 @@ FRAMES_MAX_SUMIDO = 30
 
 
 # ==============================================================================
-# BANCO DE DADOS
+# COMUNICAÇÃO COM BACKEND
 # ==============================================================================
 
-def conectar_banco():
-    if not all([DB_HOST, DB_USER, DB_PASSWORD, DB_NAME]):
-        raise ValueError(
-            "Configuração do banco incompleta. "
-            "Verifique DB_HOST, DB_USER, DB_PASSWORD e DB_NAME no arquivo .env."
-        )
-
-    return mysql.connector.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        database=DB_NAME,
-        ssl_disabled=not DB_SSL
-    )
-
-
-def testar_conexao():
+def testar_api():
     try:
-        conexao = conectar_banco()
-        cursor = conexao.cursor()
-        cursor.execute("SELECT DATABASE()")
-        banco_atual = cursor.fetchone()[0]
+        response = requests.get(API_BASE_URL, timeout=10)
+        response.raise_for_status()
 
-        cursor.close()
-        conexao.close()
-
-        print(f"✅ Conectado ao banco: {banco_atual}")
+        print("✅ Conexão com a API estabelecida com sucesso.")
         return True
 
     except Exception as e:
-        print(f"❌ Erro ao testar conexão com o banco: {e}")
+        print(f"❌ Erro ao conectar com a API: {e}")
         return False
 
 
 def salvar_banco_async(equipe, alimento, quantidade, peso_total):
     def run():
         try:
-            conexao = conectar_banco()
-            cursor = conexao.cursor()
+            payload = {
+                "team_group": equipe,
+                "alimento": alimento,
+                "quantidade": quantidade,
+                "peso_kg": peso_total
+            }
 
-            cursor.execute(
-                """
-                INSERT INTO arrecadacao 
-                (team_group, alimento, quantidade, peso_kg) 
-                VALUES (%s, %s, %s, %s)
-                """,
-                (equipe, alimento, quantidade, peso_total)
+            response = requests.post(
+                f"{API_BASE_URL}/api/arrecadacao",
+                json=payload,
+                timeout=10
             )
 
-            conexao.commit()
-
-            cursor.close()
-            conexao.close()
+            response.raise_for_status()
 
             print(
-                f"✅ Salvo no DB: {quantidade}x {alimento} "
+                f"✅ Salvo via API: {quantidade}x {alimento} "
                 f"({peso_total}kg) - Equipe: {equipe}"
             )
 
         except Exception as e:
-            print(f"⚠️ Erro ao salvar no banco: {e}")
+            print(f"⚠️ Erro ao salvar via API: {e}")
 
     threading.Thread(target=run, daemon=True).start()
 
 
 def obter_grupos_db():
     try:
-        conexao = conectar_banco()
-        cursor = conexao.cursor()
+        response = requests.get(f"{API_BASE_URL}/api/groups", timeout=10)
+        response.raise_for_status()
 
-        cursor.execute("""
-            SELECT grupo
-            FROM (
-                SELECT name AS grupo
-                FROM team_groups
+        grupos_api = response.json()
+        grupos = [grupo["name"] for grupo in grupos_api if grupo.get("name")]
 
-                UNION
+        print(f"✅ Grupos encontrados na API: {grupos}")
 
-                SELECT team_group AS grupo
-                FROM users
-                WHERE team_group IS NOT NULL
-                AND team_group != ''
-            ) AS grupos_unificados
-            WHERE grupo IS NOT NULL
-            AND grupo != ''
-            ORDER BY grupo
-        """)
-
-        grupos = [linha[0] for linha in cursor.fetchall()]
-
-        cursor.close()
-        conexao.close()
-
-        print(f"✅ Grupos encontrados no banco: {grupos}")
-
-        return grupos if grupos else ["Nenhum grupo cadastrado no DB"]
+        return grupos if grupos else ["Nenhum grupo cadastrado na API"]
 
     except Exception as e:
-        print(f"⚠️ Erro ao buscar grupos no MySQL: {e}")
+        print(f"⚠️ Erro ao buscar grupos na API: {e}")
         return ["Grupo A (Modo Offline)", "Grupo B (Modo Offline)"]
 
 
@@ -394,9 +343,9 @@ if not os.path.exists(args.model):
     sys.exit(0)
 
 
-# 1. Teste de conexão
-if not testar_conexao():
-    print("Encerrando por falha na conexão com o banco.")
+# 1. Teste de conexão com a API
+if not testar_api():
+    print("Encerrando por falha na conexão com a API.")
     sys.exit(0)
 
 
@@ -408,7 +357,7 @@ if not grupo_selecionado:
     sys.exit(0)
 
 grupos_invalidos = [
-    "Nenhum grupo cadastrado no DB",
+    "Nenhum grupo cadastrado na API",
     "Grupo A (Modo Offline)",
     "Grupo B (Modo Offline)"
 ]
