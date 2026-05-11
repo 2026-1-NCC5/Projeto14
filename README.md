@@ -142,12 +142,15 @@ Assim, o detector não precisa acessar diretamente o banco de dados nem armazena
 ```text
 Projeto14/
 ├── Documentos/
-│   ├── Entrega 01/
-│   └── Entrega 02/
+│   ├── Entrega01/
+│   └── Entrega02/
+│   └── Banner_FECAP_CCOMP5_LiderAI.pdf
+│   └── Banner_FECAP_CCOMP5_LiderAI.pptx
+│   └── Documento - Projeto de Extensão - LiderAI.pdf
 │
 ├── src/
-│   ├── Entrega 01/
-│   └── Entrega 02/
+│   ├── Entrega01/
+│   └── Entrega02/
 │       ├── Inteligência Artificial e Aprendizado de Máquina/
 │       ├── backend/
 │       └── frontend/
@@ -164,11 +167,11 @@ Projeto14/
 
 📂 **src:** contém os arquivos de implementação do projeto, separados por entrega.
 
-📂 **src/Entrega 02/Inteligência Artificial e Aprendizado de Máquina:** contém o modelo de visão computacional, o script principal de detecção, o arquivo de dependências e a documentação específica do módulo de IA.
+📂 **src/Entrega02/Inteligência Artificial e Aprendizado de Máquina:** contém o modelo de visão computacional, o script principal de detecção, o arquivo de dependências e a documentação específica do módulo de IA.
 
-📂 **src/Entrega 02/backend:** contém a aplicação backend em Node.js, responsável pela comunicação com o banco de dados e organização das rotas. Atualmente, essa aplicação está hospedada no Azure App Service.
+📂 **src/Entrega02/backend:** contém a aplicação backend em Node.js, responsável pela comunicação com o banco de dados e organização das rotas. Atualmente, essa aplicação está hospedada no Azure App Service.
 
-📂 **src/Entrega 02/frontend:** contém a interface web desenvolvida em React com TypeScript e Vite.
+📂 **src/Entrega02/frontend:** contém a interface web desenvolvida em React com TypeScript e Vite.
 
 ---
 
@@ -199,7 +202,7 @@ cd Projeto14
 ### 2. Acessar a pasta do frontend
 
 ```bash
-cd "src/Entrega 02/frontend"
+cd "src/Entrega02/frontend"
 ```
 
 ---
@@ -245,7 +248,7 @@ Mesmo sendo executado localmente, o detector utiliza o backend hospedado no Azur
 ### 1. Acessar a pasta do módulo de IA
 
 ```bash
-cd "src/Entrega 02/Inteligência Artificial e Aprendizado de Máquina"
+cd "src/Entrega02/Inteligência Artificial e Aprendizado de Máquina"
 ```
 
 ---
