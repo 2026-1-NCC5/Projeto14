@@ -244,3 +244,7 @@ test-results/
 .env
 .env.*
 node_modules/
+!src/Entrega02/frontend/src/lib/
+!src/Entrega02/frontend/src/lib/**
+!src/Entrega 02/frontend/src/lib/
+!src/Entrega 02/frontend/src/lib/**
