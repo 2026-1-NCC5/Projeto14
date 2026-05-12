@@ -3,8 +3,7 @@
 # Projeto 14 - 🚀 LiderAI
 
 ### 💡 Inteligência Artificial a serviço da gestão humanitária
-
-<img height="150" alt="LiderAI" src="https://github.com/user-attachments/assets/b0cf286e-2009-428a-8b20-5a4d9df4ebb9" /> &nbsp;&nbsp;&nbsp;&nbsp; <img height="150" alt="Logo FECAP" src="https://github.com/user-attachments/assets/01348b62-c4a4-43db-897b-15e4f8ed6a80" />
+&nbsp;&nbsp;&nbsp;&nbsp; <img height="400" alt="Logo FECAP" src="https://github.com/user-attachments/assets/01348b62-c4a4-43db-897b-15e4f8ed6a80" />
 
 **FECAP - Fundação Escola de Comércio Álvares Penteado**
 
