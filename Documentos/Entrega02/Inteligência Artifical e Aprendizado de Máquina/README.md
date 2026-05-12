@@ -1,5 +1,4 @@
 
-```md
 # Documentação - Entrega 02 - Inteligência Artificial e Aprendizado de Máquina
 
 Esta pasta contém apenas a documentação referente à **Entrega 02** da disciplina de **Inteligência Artificial e Aprendizado de Máquina** do Projeto 14 - LiderAI.
